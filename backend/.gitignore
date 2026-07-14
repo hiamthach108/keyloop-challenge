@@ -1,0 +1,8 @@
+*.DS_Store
+bin/
+coverage.out
+tmp/
+vendor/
+go.work
+go.work.sum
+/secrets/

@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: #171717;
+  font-family: var(--font-sans);
+  background: #fafafa;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

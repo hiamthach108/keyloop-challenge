@@ -1,0 +1,9 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+coverage.out
+tmp/
+vendor/
+frontend/node_modules/
+frontend/.next/
