@@ -1,238 +1,228 @@
 # Scenario B - Intelligent Inventory Dashboard
 
-## 1. Purpose and scope
+## Purpose
 
-The system gives a dealership manager a current, filterable view of vehicle
-inventory, calls out vehicles held for more than 90 days, and records proposed
-actions for those aging vehicles.
+This project implements Scenario B for the Keyloop challenge: a dealership
+manager can view current stock, find inventory older than 90 days, and record
+follow-up actions for aging vehicles.
 
-The repository contains both a Go backend scaffold and a working Next.js
-dashboard. The frontend uses the REST API by default and retains a mock
-data-source adapter for isolated UI development. The source can be switched
-through an environment variable without changing dashboard components.
+The final submission is a small full-stack system:
 
-## 2. Assumptions
+- `frontend/`: Next.js, Ant Design, and TanStack Query dashboard.
+- `backend/`: Go REST API with Echo, GORM repositories, PostgreSQL, and Atlas
+  migrations.
+- `docker-compose.yml`: local PostgreSQL, migration, backend, and frontend
+  runtime.
 
-- Authentication is outside the challenge scope. Dealerships are explicit API
-  resources, and inventory routes include `dealershipID` in the URL so the
-  frontend can list and switch between seeded dealerships.
-- A vehicle is in stock while `sold_at` is `NULL`. Inventory age is the count of
-  calendar days between `stocked_at` and the API's current UTC date.
-- A vehicle becomes aging stock at **91 days or more** (strictly more than 90
-  days), including when it crosses the threshold without any data change.
-- An aging vehicle may have multiple action-history entries. The latest entry
-  is its current displayed status; history is retained for auditability.
-- Vehicle make and model matching is case-insensitive partial matching. Age
-  filters are expressed as minimum and/or maximum inventory days.
+Authentication is intentionally omitted. Dealership context is explicit through
+the API route and the dealership selector.
 
-## 3. Architecture
+## Architecture Overview
 
 ```mermaid
 flowchart LR
-    M[Dealership manager]
-    WEB[Next.js dashboard\nAnt Design]
-    MOCK[Mock inventory adapter\nlocalStorage actions]
-    API[Inventory API\nGo HTTP service]
-    APP[Inventory application service]
-    DB[(PostgreSQL)]
-    OBS[Structured logs, metrics, traces]
+    U["Dealership manager"]
+    FE["Next.js dashboard\nAnt Design Splitter\nTanStack Query"]
+    API["Go REST API\nEcho handlers"]
+    SVC["Inventory service\nbusiness rules"]
+    REPO["Model repositories\nDealership, Vehicle, Stock,\nAction, Movement"]
+    DB[("PostgreSQL")]
+    MIG["Atlas migration container"]
 
-    M -->|Browser| WEB
-    WEB -. Optional mock mode .-> MOCK
-    WEB -->|Default API mode| API
-    API --> APP
-    APP -->|SQL via repository| DB
-    API --> OBS
-    APP --> OBS
+    U --> FE
+    FE --> API
+    API --> SVC
+    SVC --> REPO
+    REPO --> DB
+    MIG --> DB
 ```
 
-The challenge deployment is a deliberately small modular monolith. It has
-clear seams for eventual extraction, but avoids distributed-system complexity
-where a single dealership inventory service and one relational database are
-enough.
+The system is a modular monolith. That keeps the challenge easy to run and
+review, while still separating HTTP, business rules, persistence, migrations,
+and UI concerns.
 
-## 4. Component responsibilities
+## Backend Design
 
-| Component | Responsibility |
+The backend exposes dealership-scoped inventory routes under `/api/v1`.
+
+| Route | Purpose |
 | --- | --- |
-| Next.js dashboard | Display inventory summaries, dealership selection, filters, aging indicators, and the action form using Ant Design. |
-| Frontend data-source adapter | Call the dealership-scoped REST API by default, or provide mock data and local persistence for isolated UI work. |
-| REST handlers | Validate HTTP requests and dealership identifiers, map errors to stable API responses, and serialize JSON. |
-| Inventory application service | Own list/filter behavior, aging-stock calculation, and the rule that actions can only be recorded for aging vehicles. |
-| Model-specific repositories | Separate dealership, vehicle, stock, action, and movement persistence contracts. The stock repository owns the atomic status transition and movement insert. |
-| PostgreSQL | Persist vehicle identity, dealership stock state, and immutable movement/action history; provide indexed filtering and consistent writes. |
-| Atlas migration service | Generate schema migrations from separated GORM models, verify `atlas.sum`, apply migrations before backend startup, and load deterministic seed data from a separate migration. |
-| Observability adapter | Emit request-correlated logs, metrics, and tracing spans without coupling domain logic to a vendor. |
+| `GET /api/v1/dealerships` | List dealerships for the selector. |
+| `GET /api/v1/dealerships/{dealershipID}/stocks` | List stock with search, filters, sorting, and pagination. |
+| `GET /api/v1/dealerships/{dealershipID}/stocks/aging` | List only aging in-stock vehicles. |
+| `POST /api/v1/dealerships/{dealershipID}/stocks/{stockID}/actions` | Add a manager action and note for aging stock. |
+| `POST /api/v1/dealerships/{dealershipID}/stocks/{stockID}/movements` | Record stock-in or stock-out and update stock state atomically. |
+| `GET /api/v1/dealerships/{dealershipID}/stocks/{stockID}/history` | Return merged movement and action history. |
+| `GET /ping` | Local health check. |
 
-## 5. Data model
+Important rules:
+
+- Aging stock means in-stock inventory older than 90 calendar days.
+- Actions are allowed only for in-stock aging vehicles.
+- Action types are explicit enums, for example
+  `PRICE_REDUCTION_PLANNED`, `TRANSFER_PROPOSED`, `MARKETING_CAMPAIGN`,
+  `AWAITING_REVIEW`, and `OTHER`.
+- Stock movements are immutable history records and also update the current
+  stock status.
+- Sorting uses an allowlist of supported columns.
+- Search is case-insensitive and checks vehicle make and model.
+
+## Data Model
 
 ```mermaid
 erDiagram
-    DEALERSHIPS ||--o{ INVENTORY_STOCKS : holds
+    DEALERSHIPS ||--o{ INVENTORY_STOCKS : owns
     VEHICLES ||--o{ INVENTORY_STOCKS : identifies
-    INVENTORY_STOCKS ||--o{ STOCK_MOVEMENTS : records
     INVENTORY_STOCKS ||--o{ INVENTORY_ACTIONS : has
+    INVENTORY_STOCKS ||--o{ STOCK_MOVEMENTS : records
 
     DEALERSHIPS {
-      uuid id PK
-      text name
-      timestamptz created_at
+      string id PK
+      string name
+      string location
     }
     VEHICLES {
-      uuid id PK
-      text vin UK
-      text make
-      text model
+      string id PK
+      string vin UK
+      string make
+      string model
       int model_year
     }
     INVENTORY_STOCKS {
-      uuid id PK
-      uuid dealership_id FK
-      uuid vehicle_id FK
-      text status
+      string id PK
+      string dealership_id FK
+      string vehicle_id FK
+      string status
       numeric price
       timestamptz stocked_in_at
       timestamptz stocked_out_at
     }
-    STOCK_MOVEMENTS {
-      uuid id PK
-      uuid stock_id FK
-      text movement_type
-      text note
-      timestamptz occurred_at
-    }
     INVENTORY_ACTIONS {
-      uuid id PK
-      uuid stock_id FK
-      text action_type
-      text note
+      string id PK
+      string stock_id FK
+      string action_type
+      string note
       timestamptz created_at
+    }
+    STOCK_MOVEMENTS {
+      string id PK
+      string stock_id FK
+      string movement_type
+      string note
+      timestamptz occurred_at
     }
 ```
 
-Key constraints and indexes:
+The model separates vehicle identity from inventory stock. This is useful
+because vehicle information should not be duplicated into every operational
+stock event.
 
-- `vehicles(vin)` is globally unique vehicle identity; stock is unique by
-  `(dealership_id, vehicle_id)`.
-- Stock status, movement type, and action type are protected by check
-  constraints matching backend enums.
-- `(dealership_id, status)` and `stocked_in_at` support scoped status/age
-  filtering; make and model indexes support search and dynamic allowlisted sort.
-- Movement and action indexes order each stock's append-only history newest first.
+There is one repository per model:
 
-## 6. API surface
+- `DealershipRepository`
+- `VehicleRepository`
+- `InventoryStockRepository`
+- `InventoryActionRepository`
+- `StockMovementRepository`
 
-| Method and path | Behavior |
-| --- | --- |
-| `GET /api/v1/dealerships` | List seeded dealerships for the frontend dealership selector. |
-| `GET /api/v1/dealerships/{dealershipID}/stocks` | Paginated stock list with search, make/model/status/age filters, and enum-constrained dynamic sorting. |
-| `GET /api/v1/dealerships/{dealershipID}/stocks/aging` | Return only in-stock inventory older than 90 calendar days. |
-| `POST /api/v1/dealerships/{dealershipID}/stocks/{stockID}/actions` | Append an enum-coded action and note for aging, in-stock inventory. |
-| `POST /api/v1/dealerships/{dealershipID}/stocks/{stockID}/movements` | Atomically append `STOCK_IN`/`STOCK_OUT` and transition current stock state. |
-| `GET /api/v1/dealerships/{dealershipID}/stocks/{stockID}/history` | Merge movement and action history newest first. |
-| `GET /healthz` and `GET /readyz` | Liveness and database-readiness endpoints for local and production deployment. |
+The stock repository owns the transaction for stock movement because that
+operation must insert history and change current stock status together.
 
-List responses include pagination metadata (`page`, `pageSize`, `total`). Page
-size is capped at 100, and `minAgeDays <= maxAgeDays` when both are supplied.
+## Migrations And Seed Data
 
-## 7. Primary data flows
+GORM models are the schema source, but `gorm.AutoMigrate` is not used at
+runtime. Atlas generates and applies SQL migrations.
 
-### Inventory dashboard load
+Current migrations:
 
-1. The client calls `GET /api/v1/dealerships/{dealershipID}/stocks` with
-   optional filters.
-2. The handler validates query parameters and passes the route dealership ID
-   to the application service.
-3. The service computes age relative to the injected UTC clock and asks the
-   stock repository for matching inventory and the action repository for the latest action per stock.
-4. PostgreSQL filters by dealership and returns a single paginated result set.
-5. The API calculates/returns aging flags, emits telemetry, and responds with
-   JSON. A frontend can render the `is_aging` flag as a prominent badge or
-   aging-stock panel.
+- `20260712035547_init_inventory.sql`: initial schema.
+- `20260712035548_seed_inventory.sql`: base dealerships, vehicles, stocks,
+  movements, and actions.
+- `20260714074000_expand_seed_inventory.sql`: expanded demo inventory.
+- `20260714075500_normalize_expanded_seed_inventory.sql`: cleaned generated
+  VINs and normalized expanded stock visibility.
 
-### Record an aging-stock action
+`atlas.sum` protects both schema and seed migrations. Docker Compose runs a
+dedicated migration container before the backend starts.
 
-1. The manager submits an action enum and note to
-   `POST /api/v1/dealerships/{dealershipID}/stocks/{stockID}/actions`.
-2. The service loads the vehicle under the same dealership scope and calculates
-   its current age using the shared clock.
-3. If the vehicle is not in stock or is 90 days old or younger, the request is
-   rejected without a write.
-4. Otherwise, a transaction inserts the action history record and returns the
-   newly created action. The next list request reflects it as the current action.
+The local seed creates 50 stock rows across the Hanoi and Saigon dealerships,
+which gives enough data to demo search, pagination, aging flags, actions, and
+detail history.
 
-## 8. Technology choices
+## Frontend Design
 
-| Technology | Why |
-| --- | --- |
-| Go with Echo and Uber Fx | Fast startup, clear HTTP routing, explicit lifecycle management, and straightforward unit/integration testing. |
-| PostgreSQL | Durable relational storage, transactions, constraints, and excellent query/index support for dealership-scoped inventory. |
-| GORM with the PostgreSQL driver | Matches the proven local Dreon boilerplate for query composition and connection pooling; its models are the desired schema consumed by Atlas, while `AutoMigrate` remains disabled. |
-| Atlas with the GORM provider | Generates reviewed, versioned SQL from models, protects schema and seed migrations with `atlas.sum`, and applies them in a dedicated container. |
-| Dreon SDK | Reuses structured logging and shared application-error behavior from the existing backend conventions. |
-| OpenAPI 3.1 | A precise contract for the mocked frontend/API harness and a natural future client-generation point. |
-| Docker Compose | One-command local PostgreSQL dependency while retaining the option to run the API natively. |
-| OpenTelemetry API with Prometheus metrics | Vendor-neutral tracing and measurable service behavior. |
+The dashboard is built with Next.js App Router and Ant Design.
 
-## 9. Reliability, performance, and security
+Main UI decisions:
 
-- Queries are always dealership-scoped and parameterized; no raw user input is
-  interpolated into SQL.
-- The server applies request timeouts, graceful shutdown, bounded database pool
-  settings, and a short database query timeout.
-- The list endpoint uses pagination, bounded inputs, and indexes rather than
-  loading all dealer inventory into memory.
-- A single SQL query retrieves each vehicle's latest action rather than creating
-  an N+1 query pattern.
-- Database constraints protect invariants even if another client bypasses the
-  API. The action insertion occurs transactionally.
-- Authentication is deliberately omitted. TLS termination, secrets injection,
-  and rate limiting remain deployment concerns outside the challenge runtime.
+- TanStack Query handles async dealership, stock, history, and mutation state.
+- A dealership selector scopes all inventory requests.
+- One search box maps to backend make/model search.
+- The inventory table uses top pagination and no internal vertical table
+  scrollbar.
+- The detail panel uses Ant Design `Splitter`, not a modal, so the manager can
+  keep table context while reviewing a stock item.
+- The first visible stock item is selected by default, so the detail panel is
+  never empty after data loads.
+- The detail panel shows stock metadata, current status, action form, and
+  merged stock/action history.
 
-## 10. Observability strategy
+The frontend talks to the real backend API by default. A mock adapter remains
+in the code for isolated UI development, but the Docker setup uses API mode.
 
-- **Logs:** structured JSON logs containing request ID, route, status, latency,
-  dealership ID (non-sensitive), vehicle ID where applicable, and error class.
-  VINs and free-text notes are not logged by default.
-- **Metrics:** request count/duration/error rate by route, database query
-  duration/errors, active connections, and domain counters for aging vehicles
-  returned and actions created/rejected.
-- **Traces:** an inbound HTTP span with child spans for application work and
-  repository calls; request IDs are propagated to logs.
-- **Health:** liveness checks process health; readiness confirms database
-  connectivity. Alerts would cover sustained 5xx rate, latency, database
-  failures, and readiness failures.
+## Why These Choices
 
-## 11. Test strategy
+- **Go + Echo**: simple, fast REST API with clear request handling.
+- **PostgreSQL**: strong fit for dealership-scoped relational inventory data,
+  transactions, constraints, and indexed filtering.
+- **Atlas**: keeps migrations explicit, reviewable, and checksum-protected.
+- **GORM models with repositories**: useful for the boilerplate and model
+  generation, while keeping persistence code behind repository interfaces.
+- **TanStack Query**: cleaner frontend async handling, cache invalidation after
+  mutations, and less manual loading/error state.
+- **Ant Design**: fast way to build a practical operational dashboard with
+  table, forms, tags, pagination, and Splitter.
+- **Docker Compose**: one command to run Postgres, migrations, backend, and
+  frontend for review.
 
-- Unit tests for aging-boundary behavior (90 vs. 91 days), filter validation,
-  and the non-aging action rejection rule, using an injected fixed clock.
-- Handler tests for HTTP validation, response schema, tenancy isolation, and
-  error mappings.
-- PostgreSQL integration tests for migrations, constraints, indexed query
-  behavior, pagination, and transactional action persistence.
-- A small end-to-end API harness uses seeded data to demonstrate filtering,
-  aging-stock retrieval, action creation, and its subsequent visibility.
+## AI / Codex Collaboration
 
-## 12. Delivery sequence
+Codex was used as an implementation partner, not as an unchecked generator.
+The workflow was:
 
-1. Scaffold the Go module, Compose environment, migrations, and seed data.
-2. Implement the vehicle and action repositories with integration tests.
-3. Implement application rules and deterministic unit tests.
-4. Add REST handlers, OpenAPI contract, API examples, and end-to-end tests.
-5. Add telemetry, health endpoints, README runbook, AI collaboration narrative,
-   and final verification.
+1. Read the challenge and agree on Scenario B.
+2. Draft architecture before coding.
+3. Scaffold backend and frontend from existing boilerplates.
+4. Iterate on domain modelling after review: inventory stock, stock movements,
+   action history, enum action types, repository per model, and Atlas
+   migrations.
+5. Integrate the frontend with the real backend API.
+6. Improve the dashboard based on feedback: no auth, no modal, Splitter detail
+   panel, TanStack Query, simpler search, and cleaner table pagination.
+7. Verify with lint, typecheck, Go tests, Docker Compose, API smoke tests, and
+   browser checks.
 
-## 13. GenAI-assisted design narrative
+The final decisions were developer-owned. Codex helped move faster, but the
+important parts were still reviewed: dealership scoping, 90-day aging logic,
+database constraints, API shape, migrations, and UI behavior.
 
-GenAI was used as a collaborative design reviewer: it helped turn the brief
-into explicit acceptance criteria, surfaced ambiguity around the 90-day
-boundary and action-history semantics, and proposed alternative API/data-model
-shapes. The final decisions remain deliberate human choices: a backend-only
-scope, PostgreSQL persistence, a modular monolith, strict dealership scoping,
-and an immutable action history.
+## How To Verify Locally
 
-Before implementation, every AI suggestion will be checked against the
-requirements in `KeyloopCodingChallange.pdf`, API and database invariants, and
-automated tests. Generated code will be reviewed for tenancy leaks, SQL safety,
-error behavior, and observability before it is accepted.
+```sh
+make docker-up-detached
+```
+
+Then open:
+
+- Frontend: `http://localhost:3000`
+- API ping: `http://localhost:8080/ping`
+- API dealerships: `http://localhost:8080/api/v1/dealerships`
+
+Useful checks:
+
+```sh
+make backend-test
+make frontend-lint
+make frontend-typecheck
+make frontend-build
+```
