@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/hiamthach108/dreon-sdk/logger"
 	"github.com/hiamthach108/keyloop-challenge/backend/config"
+	_ "github.com/hiamthach108/keyloop-challenge/backend/docs"
 	"github.com/hiamthach108/keyloop-challenge/backend/internal/repository"
 	"github.com/hiamthach108/keyloop-challenge/backend/internal/service"
 	"github.com/hiamthach108/keyloop-challenge/backend/pkg/database"
@@ -12,6 +13,12 @@ import (
 	"go.uber.org/fx/fxevent"
 )
 
+// @title Keyloop Intelligent Inventory API
+// @version 1.0
+// @description Scenario B API for dealership inventory, aging-stock actions, and stock movement history.
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http
 func main() {
 	app := fx.New(
 		fx.WithLogger(func(appLogger logger.ILogger) fxevent.Logger {

@@ -35,9 +35,11 @@ make docker-up
 ```
 
 Open `http://localhost:3000`. The API is available at
-`http://localhost:8080/api/v1`. Compose runs a dedicated Atlas migration
-container before starting the backend. Atlas applies the generated schema
-migration and the checksum-protected seed migration under `backend/migrations/`.
+`http://localhost:8080/api/v1`, and Swagger UI is available at
+`http://localhost:8080/swagger/index.html`. Compose runs a dedicated Atlas
+migration container before starting the backend. Atlas applies the generated
+schema migration and the checksum-protected seed migration under
+`backend/migrations/`.
 
 Run the stack in the background with `make docker-up-detached`, and stop it
 with `make docker-down`. To recreate and reseed the database:
@@ -106,6 +108,20 @@ make migration-validate
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design, assumptions, API
 shape, data flow, observability strategy, and delivery plan.
+
+## Swagger
+
+Swagger annotations live beside the Echo handlers and generated docs are stored
+under `backend/docs/`.
+
+Regenerate the spec after changing backend routes or request/response DTOs:
+
+```sh
+make swagger
+```
+
+Then open `http://localhost:8080/swagger/index.html` while the backend is
+running.
 
 ## AI collaboration narrative
 

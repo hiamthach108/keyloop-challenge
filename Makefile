@@ -26,6 +26,9 @@ backend-lint:
 backend-tidy:
 	cd $(BACKEND_DIR) && go mod tidy
 
+swagger:
+	cd $(BACKEND_DIR) && swag init -g main.go -o docs
+
 migration-diff:
 	cd $(BACKEND_DIR) && atlas migrate diff $(name) --env gorm
 
@@ -68,4 +71,4 @@ dev: setup infra-up migration-apply
 
 verify: backend-test migration-validate frontend-lint frontend-typecheck frontend-build
 
-.PHONY: setup infra-up infra-down backend-run backend-test backend-lint backend-tidy migration-diff migration-hash migration-validate migration-apply frontend-run frontend-lint frontend-typecheck frontend-build docker-up docker-up-detached docker-down docker-reset dev verify
+.PHONY: setup infra-up infra-down backend-run backend-test backend-lint backend-tidy swagger migration-diff migration-hash migration-validate migration-apply frontend-run frontend-lint frontend-typecheck frontend-build docker-up docker-up-detached docker-down docker-reset dev verify

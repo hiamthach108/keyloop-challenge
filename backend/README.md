@@ -12,6 +12,7 @@ manager actions.
 - Uber Fx dependency injection
 - PostgreSQL with GORM
 - Dreon SDK structured logging and application errors
+- Swaggo Swagger UI
 
 Redis, gRPC, and authentication were intentionally removed because they are not
 needed for the Scenario B scope.
@@ -38,6 +39,12 @@ POST /api/v1/dealerships/:dealershipID/stocks/:stockID/movements
 GET  /api/v1/dealerships/:dealershipID/stocks/:stockID/history
 ```
 
+Swagger UI is available at:
+
+```text
+http://localhost:8080/swagger/index.html
+```
+
 The stock list supports `search` (make/model), `make`, `model`, `status`, age
 filters, pagination, and enum-constrained `sortBy`/`sortOrder` values. Stock
 movements and manager actions are immutable history records.
@@ -52,6 +59,12 @@ make migration-diff name=describe_change
 The schema and seed migrations are stored separately in `migrations/`, and
 `atlas.sum` protects both. Docker Compose runs the dedicated migration image
 before starting the backend.
+
+Regenerate Swagger after API or DTO changes:
+
+```sh
+make swagger
+```
 
 ## Checks
 

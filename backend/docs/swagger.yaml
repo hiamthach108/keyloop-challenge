@@ -1,0 +1,576 @@
+basePath: /api/v1
+definitions:
+  aggregate.CreateInventoryActionReq:
+    properties:
+      actionType:
+        allOf:
+        - $ref: '#/definitions/constant.InventoryActionType'
+        enum:
+        - PRICE_REDUCTION_PLANNED
+        - TRANSFER_PROPOSED
+        - MARKETING_CAMPAIGN
+        - AWAITING_REVIEW
+        - OTHER
+        example: AWAITING_REVIEW
+      note:
+        example: Review this stock item with the sales manager
+        maxLength: 500
+        minLength: 1
+        type: string
+    required:
+    - actionType
+    - note
+    type: object
+  aggregate.CreateStockMovementReq:
+    properties:
+      movementType:
+        allOf:
+        - $ref: '#/definitions/constant.StockMovementType'
+        enum:
+        - STOCK_IN
+        - STOCK_OUT
+        example: STOCK_OUT
+      note:
+        example: Vehicle delivered to customer
+        maxLength: 500
+        minLength: 1
+        type: string
+    required:
+    - movementType
+    - note
+    type: object
+  aggregate.DealershipAggregate:
+    properties:
+      id:
+        type: string
+      location:
+        type: string
+      name:
+        type: string
+    type: object
+  aggregate.InventoryActionAggregate:
+    properties:
+      actionType:
+        $ref: '#/definitions/constant.InventoryActionType'
+      createdAt:
+        type: string
+      id:
+        type: string
+      note:
+        type: string
+    type: object
+  aggregate.InventoryStockAggregate:
+    properties:
+      dealershipId:
+        type: string
+      id:
+        type: string
+      inventoryAgeDays:
+        type: integer
+      isAging:
+        type: boolean
+      latestAction:
+        $ref: '#/definitions/aggregate.InventoryActionAggregate'
+      make:
+        type: string
+      model:
+        type: string
+      modelYear:
+        type: integer
+      price:
+        type: number
+      status:
+        $ref: '#/definitions/constant.StockStatus'
+      stockedInAt:
+        type: string
+      stockedOutAt:
+        type: string
+      vehicleId:
+        type: string
+      vin:
+        type: string
+    type: object
+  aggregate.InventoryStockListAggregate:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/aggregate.InventoryStockAggregate'
+        type: array
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  aggregate.StockHistoryEventAggregate:
+    properties:
+      actionType:
+        $ref: '#/definitions/constant.InventoryActionType'
+      eventType:
+        $ref: '#/definitions/aggregate.StockHistoryEventType'
+      id:
+        type: string
+      note:
+        type: string
+      occurredAt:
+        type: string
+    type: object
+  aggregate.StockHistoryEventType:
+    enum:
+    - ACTION
+    - STOCK_IN
+    - STOCK_OUT
+    type: string
+    x-enum-varnames:
+    - StockHistoryEventTypeAction
+    - StockHistoryEventTypeStockIn
+    - StockHistoryEventTypeStockOut
+  constant.InventoryActionType:
+    enum:
+    - PRICE_REDUCTION_PLANNED
+    - TRANSFER_PROPOSED
+    - MARKETING_CAMPAIGN
+    - AWAITING_REVIEW
+    - OTHER
+    type: string
+    x-enum-varnames:
+    - InventoryActionTypePriceReductionPlanned
+    - InventoryActionTypeTransferProposed
+    - InventoryActionTypeMarketingCampaign
+    - InventoryActionTypeAwaitingReview
+    - InventoryActionTypeOther
+  constant.StockMovementType:
+    enum:
+    - STOCK_IN
+    - STOCK_OUT
+    type: string
+    x-enum-varnames:
+    - StockMovementTypeIn
+    - StockMovementTypeOut
+  constant.StockStatus:
+    enum:
+    - IN_STOCK
+    - OUT_OF_STOCK
+    type: string
+    x-enum-varnames:
+    - StockStatusInStock
+    - StockStatusOutOfStock
+  handler.BaseResp:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+  handler.DealershipListResp:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/aggregate.DealershipAggregate'
+        type: array
+      message:
+        example: success
+        type: string
+    type: object
+  handler.InventoryActionResp:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data:
+        $ref: '#/definitions/aggregate.InventoryActionAggregate'
+      message:
+        example: success
+        type: string
+    type: object
+  handler.StockHistoryResp:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/aggregate.StockHistoryEventAggregate'
+        type: array
+      message:
+        example: success
+        type: string
+    type: object
+  handler.StockListResp:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data:
+        $ref: '#/definitions/aggregate.InventoryStockListAggregate'
+      message:
+        example: success
+        type: string
+    type: object
+  handler.StockResp:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data:
+        $ref: '#/definitions/aggregate.InventoryStockAggregate'
+      message:
+        example: success
+        type: string
+    type: object
+  handler.ValidationErrItem:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+  handler.ValidationErrResp:
+    properties:
+      code:
+        type: integer
+      errors:
+        items:
+          $ref: '#/definitions/handler.ValidationErrItem'
+        type: array
+      message:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Scenario B API for dealership inventory, aging-stock actions, and stock
+    movement history.
+  title: Keyloop Intelligent Inventory API
+  version: "1.0"
+paths:
+  /dealerships:
+    get:
+      description: Returns seeded dealerships available to the inventory dashboard.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.DealershipListResp'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+      summary: List dealerships
+      tags:
+      - dealerships
+  /dealerships/{dealershipID}/stocks:
+    get:
+      description: Returns paginated inventory stock with search, filters, and enum-constrained
+        sorting.
+      parameters:
+      - description: Dealership ID
+        in: path
+        name: dealershipID
+        required: true
+        type: string
+      - description: Case-insensitive make/model search
+        in: query
+        name: search
+        type: string
+      - description: Case-insensitive make filter
+        in: query
+        name: make
+        type: string
+      - description: Case-insensitive model filter
+        in: query
+        name: model
+        type: string
+      - description: Stock status
+        enum:
+        - IN_STOCK
+        - OUT_OF_STOCK
+        in: query
+        name: status
+        type: string
+      - description: Minimum stock age in calendar days
+        in: query
+        minimum: 0
+        name: minAgeDays
+        type: integer
+      - description: Maximum stock age in calendar days
+        in: query
+        minimum: 0
+        name: maxAgeDays
+        type: integer
+      - description: Only return in-stock inventory older than 90 days
+        in: query
+        name: agingOnly
+        type: boolean
+      - description: Sort column
+        enum:
+        - STOCKED_IN_AT
+        - MAKE
+        - MODEL
+        - MODEL_YEAR
+        - PRICE
+        - STATUS
+        in: query
+        name: sortBy
+        type: string
+      - description: Sort order
+        enum:
+        - ASC
+        - DESC
+        in: query
+        name: sortOrder
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.StockListResp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ValidationErrResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+      summary: List dealership stock
+      tags:
+      - inventory
+  /dealerships/{dealershipID}/stocks/{stockID}/actions:
+    post:
+      consumes:
+      - application/json
+      description: Appends a manager action for an in-stock vehicle older than 90
+        days.
+      parameters:
+      - description: Dealership ID
+        in: path
+        name: dealershipID
+        required: true
+        type: string
+      - description: Stock ID
+        in: path
+        name: stockID
+        required: true
+        type: string
+      - description: Action payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/aggregate.CreateInventoryActionReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.InventoryActionResp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ValidationErrResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+      summary: Create stock action
+      tags:
+      - actions
+  /dealerships/{dealershipID}/stocks/{stockID}/history:
+    get:
+      description: Returns merged stock movement and manager action history newest
+        first.
+      parameters:
+      - description: Dealership ID
+        in: path
+        name: dealershipID
+        required: true
+        type: string
+      - description: Stock ID
+        in: path
+        name: stockID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.StockHistoryResp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ValidationErrResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+      summary: Get stock history
+      tags:
+      - inventory
+  /dealerships/{dealershipID}/stocks/{stockID}/movements:
+    post:
+      consumes:
+      - application/json
+      description: Atomically appends a STOCK_IN or STOCK_OUT movement and transitions
+        current stock state.
+      parameters:
+      - description: Dealership ID
+        in: path
+        name: dealershipID
+        required: true
+        type: string
+      - description: Stock ID
+        in: path
+        name: stockID
+        required: true
+        type: string
+      - description: Movement payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/aggregate.CreateStockMovementReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.StockResp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ValidationErrResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+      summary: Record stock movement
+      tags:
+      - movements
+  /dealerships/{dealershipID}/stocks/aging:
+    get:
+      description: Returns only in-stock inventory older than 90 calendar days.
+      parameters:
+      - description: Dealership ID
+        in: path
+        name: dealershipID
+        required: true
+        type: string
+      - description: Case-insensitive make/model search
+        in: query
+        name: search
+        type: string
+      - description: Case-insensitive make filter
+        in: query
+        name: make
+        type: string
+      - description: Case-insensitive model filter
+        in: query
+        name: model
+        type: string
+      - description: Sort column
+        enum:
+        - STOCKED_IN_AT
+        - MAKE
+        - MODEL
+        - MODEL_YEAR
+        - PRICE
+        - STATUS
+        in: query
+        name: sortBy
+        type: string
+      - description: Sort order
+        enum:
+        - ASC
+        - DESC
+        in: query
+        name: sortOrder
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.StockListResp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ValidationErrResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.BaseResp'
+      summary: List aging stock
+      tags:
+      - inventory
+schemes:
+- http
+swagger: "2.0"

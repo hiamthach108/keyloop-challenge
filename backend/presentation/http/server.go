@@ -13,6 +13,7 @@ import (
 	"github.com/hiamthach108/keyloop-challenge/backend/presentation/http/handler"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger"
 	"go.uber.org/fx"
 )
 
@@ -83,6 +84,7 @@ func NewHttpServer(
 			"message": "pong",
 		})
 	})
+	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	v1 := e.Group("/api/v1")
 	inventoryHandler.RegisterRoutes(v1.Group("/dealerships"))

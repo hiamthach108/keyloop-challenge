@@ -10,7 +10,7 @@ The final submission is a small full-stack system:
 
 - `frontend/`: Next.js, Ant Design, and TanStack Query dashboard.
 - `backend/`: Go REST API with Echo, GORM repositories, PostgreSQL, and Atlas
-  migrations.
+  migrations, plus generated Swagger docs.
 - `docker-compose.yml`: local PostgreSQL, migration, backend, and frontend
   runtime.
 
@@ -54,6 +54,9 @@ The backend exposes dealership-scoped inventory routes under `/api/v1`.
 | `POST /api/v1/dealerships/{dealershipID}/stocks/{stockID}/movements` | Record stock-in or stock-out and update stock state atomically. |
 | `GET /api/v1/dealerships/{dealershipID}/stocks/{stockID}/history` | Return merged movement and action history. |
 | `GET /ping` | Local health check. |
+
+Swagger UI is exposed at `GET /swagger/index.html`. The generated spec is
+committed under `backend/docs/` and can be regenerated with `make swagger`.
 
 Important rules:
 
@@ -182,6 +185,8 @@ in the code for isolated UI development, but the Docker setup uses API mode.
   mutations, and less manual loading/error state.
 - **Ant Design**: fast way to build a practical operational dashboard with
   table, forms, tags, pagination, and Splitter.
+- **Swaggo / Swagger UI**: gives reviewers and frontend clients an inspectable
+  API contract directly from backend annotations.
 - **Docker Compose**: one command to run Postgres, migrations, backend, and
   frontend for review.
 
@@ -217,6 +222,7 @@ Then open:
 - Frontend: `http://localhost:3000`
 - API ping: `http://localhost:8080/ping`
 - API dealerships: `http://localhost:8080/api/v1/dealerships`
+- Swagger UI: `http://localhost:8080/swagger/index.html`
 
 Useful checks:
 

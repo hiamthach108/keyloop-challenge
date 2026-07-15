@@ -121,11 +121,11 @@ type InventoryStockListAggregate struct {
 }
 
 type CreateInventoryActionReq struct {
-	ActionType constant.InventoryActionType `json:"actionType" validate:"required"`
-	Note       string                       `json:"note" validate:"required,min=1,max=500"`
+	ActionType constant.InventoryActionType `json:"actionType" validate:"required" enums:"PRICE_REDUCTION_PLANNED,TRANSFER_PROPOSED,MARKETING_CAMPAIGN,AWAITING_REVIEW,OTHER" example:"AWAITING_REVIEW"`
+	Note       string                       `json:"note" validate:"required,min=1,max=500" minLength:"1" maxLength:"500" example:"Review this stock item with the sales manager"`
 }
 
 type CreateStockMovementReq struct {
-	MovementType constant.StockMovementType `json:"movementType" validate:"required"`
-	Note         string                     `json:"note" validate:"required,min=1,max=500"`
+	MovementType constant.StockMovementType `json:"movementType" validate:"required" enums:"STOCK_IN,STOCK_OUT" example:"STOCK_OUT"`
+	Note         string                     `json:"note" validate:"required,min=1,max=500" minLength:"1" maxLength:"500" example:"Vehicle delivered to customer"`
 }

@@ -25,6 +25,14 @@ func (h *InventoryHandler) RegisterRoutes(group *echo.Group) {
 	group.GET("/:dealershipID/stocks/:stockID/history", h.HandleGetHistory)
 }
 
+// HandleListDealerships godoc
+// @Summary List dealerships
+// @Description Returns seeded dealerships available to the inventory dashboard.
+// @Tags dealerships
+// @Produce json
+// @Success 200 {object} DealershipListResp
+// @Failure 500 {object} BaseResp
+// @Router /dealerships [get]
 func (h *InventoryHandler) HandleListDealerships(c echo.Context) error {
 	items, err := h.service.ListDealerships(c.Request().Context())
 	if err != nil {
@@ -33,6 +41,28 @@ func (h *InventoryHandler) HandleListDealerships(c echo.Context) error {
 	return HandleSuccess(c, items)
 }
 
+// HandleListStocks godoc
+// @Summary List dealership stock
+// @Description Returns paginated inventory stock with search, filters, and enum-constrained sorting.
+// @Tags inventory
+// @Produce json
+// @Param dealershipID path string true "Dealership ID"
+// @Param search query string false "Case-insensitive make/model search"
+// @Param make query string false "Case-insensitive make filter"
+// @Param model query string false "Case-insensitive model filter"
+// @Param status query string false "Stock status" Enums(IN_STOCK, OUT_OF_STOCK)
+// @Param minAgeDays query int false "Minimum stock age in calendar days" minimum(0)
+// @Param maxAgeDays query int false "Maximum stock age in calendar days" minimum(0)
+// @Param agingOnly query bool false "Only return in-stock inventory older than 90 days"
+// @Param sortBy query string false "Sort column" Enums(STOCKED_IN_AT, MAKE, MODEL, MODEL_YEAR, PRICE, STATUS)
+// @Param sortOrder query string false "Sort order" Enums(ASC, DESC)
+// @Param page query int false "Page number" default(1) minimum(1)
+// @Param pageSize query int false "Page size" default(20) minimum(1) maximum(100)
+// @Success 200 {object} StockListResp
+// @Failure 400 {object} ValidationErrResp
+// @Failure 404 {object} BaseResp
+// @Failure 500 {object} BaseResp
+// @Router /dealerships/{dealershipID}/stocks [get]
 func (h *InventoryHandler) HandleListStocks(c echo.Context) error {
 	filters, err := parseStockFilters(c)
 	if err != nil {
@@ -45,6 +75,24 @@ func (h *InventoryHandler) HandleListStocks(c echo.Context) error {
 	return HandleSuccess(c, items)
 }
 
+// HandleListAgingStocks godoc
+// @Summary List aging stock
+// @Description Returns only in-stock inventory older than 90 calendar days.
+// @Tags inventory
+// @Produce json
+// @Param dealershipID path string true "Dealership ID"
+// @Param search query string false "Case-insensitive make/model search"
+// @Param make query string false "Case-insensitive make filter"
+// @Param model query string false "Case-insensitive model filter"
+// @Param sortBy query string false "Sort column" Enums(STOCKED_IN_AT, MAKE, MODEL, MODEL_YEAR, PRICE, STATUS)
+// @Param sortOrder query string false "Sort order" Enums(ASC, DESC)
+// @Param page query int false "Page number" default(1) minimum(1)
+// @Param pageSize query int false "Page size" default(20) minimum(1) maximum(100)
+// @Success 200 {object} StockListResp
+// @Failure 400 {object} ValidationErrResp
+// @Failure 404 {object} BaseResp
+// @Failure 500 {object} BaseResp
+// @Router /dealerships/{dealershipID}/stocks/aging [get]
 func (h *InventoryHandler) HandleListAgingStocks(c echo.Context) error {
 	filters, err := parseStockFilters(c)
 	if err != nil {
@@ -59,6 +107,21 @@ func (h *InventoryHandler) HandleListAgingStocks(c echo.Context) error {
 	return HandleSuccess(c, items)
 }
 
+// HandleCreateAction godoc
+// @Summary Create stock action
+// @Description Appends a manager action for an in-stock vehicle older than 90 days.
+// @Tags actions
+// @Accept json
+// @Produce json
+// @Param dealershipID path string true "Dealership ID"
+// @Param stockID path string true "Stock ID"
+// @Param request body aggregate.CreateInventoryActionReq true "Action payload"
+// @Success 200 {object} InventoryActionResp
+// @Failure 400 {object} ValidationErrResp
+// @Failure 404 {object} BaseResp
+// @Failure 422 {object} BaseResp
+// @Failure 500 {object} BaseResp
+// @Router /dealerships/{dealershipID}/stocks/{stockID}/actions [post]
 func (h *InventoryHandler) HandleCreateAction(c echo.Context) error {
 	req, err := HandleValidateBind[aggregate.CreateInventoryActionReq](c)
 	if err != nil {
@@ -71,6 +134,21 @@ func (h *InventoryHandler) HandleCreateAction(c echo.Context) error {
 	return HandleSuccess(c, action)
 }
 
+// HandleRecordMovement godoc
+// @Summary Record stock movement
+// @Description Atomically appends a STOCK_IN or STOCK_OUT movement and transitions current stock state.
+// @Tags movements
+// @Accept json
+// @Produce json
+// @Param dealershipID path string true "Dealership ID"
+// @Param stockID path string true "Stock ID"
+// @Param request body aggregate.CreateStockMovementReq true "Movement payload"
+// @Success 200 {object} StockResp
+// @Failure 400 {object} ValidationErrResp
+// @Failure 404 {object} BaseResp
+// @Failure 409 {object} BaseResp
+// @Failure 500 {object} BaseResp
+// @Router /dealerships/{dealershipID}/stocks/{stockID}/movements [post]
 func (h *InventoryHandler) HandleRecordMovement(c echo.Context) error {
 	req, err := HandleValidateBind[aggregate.CreateStockMovementReq](c)
 	if err != nil {
@@ -83,6 +161,18 @@ func (h *InventoryHandler) HandleRecordMovement(c echo.Context) error {
 	return HandleSuccess(c, stock)
 }
 
+// HandleGetHistory godoc
+// @Summary Get stock history
+// @Description Returns merged stock movement and manager action history newest first.
+// @Tags inventory
+// @Produce json
+// @Param dealershipID path string true "Dealership ID"
+// @Param stockID path string true "Stock ID"
+// @Success 200 {object} StockHistoryResp
+// @Failure 400 {object} ValidationErrResp
+// @Failure 404 {object} BaseResp
+// @Failure 500 {object} BaseResp
+// @Router /dealerships/{dealershipID}/stocks/{stockID}/history [get]
 func (h *InventoryHandler) HandleGetHistory(c echo.Context) error {
 	history, err := h.service.GetHistory(c.Request().Context(), c.Param("dealershipID"), c.Param("stockID"))
 	if err != nil {
